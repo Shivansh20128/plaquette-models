@@ -1,8 +1,11 @@
 from dataclasses import dataclass, field
 from typing import List, Optional
-
+import uuid
 from qiskit import transpile, QuantumCircuit
-from qiskit.providers.ibmq import IBMQJobManager, IBMQBackend
+# from qiskit.providers.ibmq import IBMQJobManager, IBMQBackend
+from qiskit_ibm_runtime import QiskitRuntimeService, RuntimeJob
+from qiskit_ibm_runtime.ibm_backend import IBMBackend
+
 from qiskit.result import Result
 
 from src.analysis.error_mitigation import get_counts_result
@@ -10,6 +13,7 @@ from src.analysis.utils import get_all_spin_up_state, get_gauss_base_state
 from src.analysis.zne_extrapolation import custom_folding
 from src.models.circuits import SinglePlaquette
 from src.models.circuits import Groups
+from typing import List, Tuple
 
 
 @dataclass
@@ -33,7 +37,7 @@ class ExperimentConfiguration:
 @dataclass
 class RunConfiguration:
     time_vector: List[float]
-    backend: IBMQBackend
+    backend: IBMBackend
     shots: int = 1000
 
 
@@ -73,7 +77,7 @@ def analyze_results(physical_model: PhysicalModel, experiment_configuration: Exp
 
 def run_circuits(physical_model: PhysicalModel, experiment_config: ExperimentConfiguration,
                  run_config: RunConfiguration) -> \
-        (IBMQJobManager, str, list):
+        Tuple[List[RuntimeJob], str, list]:
     number_links = physical_model.number_links
     g = physical_model.coupling
     model = physical_model.plaquette
@@ -106,20 +110,35 @@ def run_circuits(physical_model: PhysicalModel, experiment_config: ExperimentCon
         circuits.extend(circuits_in_step)
 
     max_credits = 5  # max credits to spend on executions--the gui interface gives credit prices
-
+    service = QiskitRuntimeService()
     circuits = circuits * num_replicas
-    job_manager = IBMQJobManager()
-    if optimization_level is not None:
-        job_hpc = job_manager.run(circuits, backend=backend, shots=shots, max_credits=max_credits, optimization_level=0)
-    else:
-        job_hpc = job_manager.run(circuits, backend=backend, shots=shots, max_credits=max_credits)
+    jobs = []
 
-    job_set_id = job_hpc.job_set_id()
+    # Generate a unique "job set ID" manually
+    job_set_id = str(uuid.uuid4())  
 
-    return job_manager, job_set_id, circuits
+    # Submit jobs for each circuit
+    for circuit in circuits:
+        job = service.run(
+            program_id="sampler",
+            options={"backend": backend.name},
+            inputs={"circuits": [circuit], "shots": shots}
+        )
+        jobs.append(job)
+
+    return jobs, job_set_id, circuits
+    # job_manager = IBMQJobManager()
+    # if optimization_level is not None:
+    #     job_hpc = job_manager.run(circuits, backend=backend, shots=shots, max_credits=max_credits, optimization_level=0)
+    # else:
+    #     job_hpc = job_manager.run(circuits, backend=backend, shots=shots, max_credits=max_credits)
+
+    # job_set_id = job_hpc.job_set_id()
+
+    # return job_manager, job_set_id, circuits
 
 
-def get_circuits_by_time_step(circuit: QuantumCircuit, zne: bool, scale_factors: list, backend: IBMQBackend,
+def get_circuits_by_time_step(circuit: QuantumCircuit, zne: bool, scale_factors: list, backend: IBMBackend,
                               optimization_level: Optional[int]) -> List[QuantumCircuit]:
     circuits_in_time_step = list()
     if not zne:

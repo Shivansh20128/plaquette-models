@@ -1,4 +1,4 @@
-from qiskit import IBMQ
+# from qiskit import IBMQ
 
 SIMULATOR = 'ibmq_qasm_simulator'
 
