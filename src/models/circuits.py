@@ -72,7 +72,7 @@ class Plaquette:
 
     def time_evolution(self, q_control: int, time_factor: float = 1.0):
         self.circuit.h(self.q_register[q_control])
-        self.circuit.u1(2 * time_factor * self.t * self.g, self.q_register[q_control])
+        self.circuit.p(2 * time_factor * self.t * self.g, self.q_register[q_control])
         self.circuit.h(self.q_register[q_control])
 
 
@@ -110,7 +110,7 @@ class SinglePlaquette(Plaquette):
         meas.barrier(self.q_register)
         meas.measure(self.q_register, c_register)
 
-        return self.circuit + meas
+        return self.circuit.compose(meas)
 
     def u1_models(self, q_control: int, qs_real: list):
         if self.n_qubits - 1 == 3:
@@ -126,10 +126,10 @@ class SinglePlaquette(Plaquette):
         meas.barrier(self.q_register)
         meas.measure(self.q_register, c_register)
 
-        return self.circuit + meas
+        return self.circuit.compose(meas)
 
     def generate_triangle_u1(self, q_control: int, qs_real: list):
-        self.circuit.u2(np.pi / 2, np.pi / 2, self.q_register[q_control])  # np.pi in the latest notebook
+        self.circuit.u(np.pi / 2,np.pi / 2, np.pi / 2, self.q_register[q_control])  # np.pi in the latest notebook
         self.apply_x_gate(qs_real)
         self.apply_h_gate(qs_real)
 
@@ -155,7 +155,7 @@ class SinglePlaquette(Plaquette):
 
             # self.rotate_qubits(q_ind, qs_real)
 
-        self.circuit.u2(-np.pi / 2, -np.pi / 2, self.q_register[q_control])
+        self.circuit.u(np.pi / 2,-np.pi / 2, -np.pi / 2, self.q_register[q_control])
 
     def generate_square_u1(self, q_control: int, qs_real: list):
         self.circuit.h(self.q_register[q_control])
