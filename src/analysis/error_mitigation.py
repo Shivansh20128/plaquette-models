@@ -1,11 +1,12 @@
 import itertools
 import json
-
+from typing import Tuple
 import numpy as np
 import pandas as pd
-from qiskit import QuantumRegister, QuantumCircuit, ClassicalRegister, execute
+from qiskit import QuantumRegister, QuantumCircuit, ClassicalRegister
+from qiskit_ibm_runtime import QiskitRuntimeService
 from qiskit.ignis.mitigation import complete_meas_cal, CompleteMeasFitter
-from qiskit.providers.ibmq import IBMQBackend
+from qiskit_ibm_runtime.ibm_backend import IBMBackend
 
 from src.analysis.constants import MATRIX, STATES
 from src.observables.gauss import gauss_law, sector_2, gauss_law_squared
@@ -13,7 +14,7 @@ from src.observables.gauss import gauss_law, sector_2, gauss_law_squared
 
 def get_counts_result(output_correction, result_hpc, result_key: str, gauss_key: str, time_vector: list,
                       zne_extrapolation: bool, scale_factors: list, num_replicas: int, ignis: bool = False,
-                      shots: int = 1000, meas_filter=None) -> (list, list):
+                      shots: int = 1000, meas_filter=None) -> Tuple[list, list]:
     results = list()
     experiments_params = get_exp_params(time_vector, zne_extrapolation, scale_factors, num_replicas)
     time_steps = len(time_vector)
@@ -131,7 +132,7 @@ class CustomErrorMitigation:
 
         return qc
 
-    def build_probability_matrix(self, backend: IBMQBackend):
+    def build_probability_matrix(self, backend: IBMBackend):
         possible_states = self._build_set_of_states()
         probability_matrix = list()
         circuits = list()
@@ -139,7 +140,16 @@ class CustomErrorMitigation:
             qc = self._build_circuit(initial_state)
             circuits.append(qc)
 
-        job_hpc = execute(circuits, backend=backend, shots=self.shots, max_credits=5)
+        # job_hpc = execute(circuits, backend=backend, shots=self.shots, max_credits=5)
+        service = QiskitRuntimeService()
+
+        # Submit the job using the "sampler" program
+        job_hpc = service._run(
+            program_id="sampler",  # Use "estimator" if needed
+            options={"backend": backend.name},
+            inputs={"circuits": circuits, "shots": self.shots}
+        )
+
         result_hpc = job_hpc.result()
 
         for ind, _ in enumerate(possible_states):
@@ -165,14 +175,23 @@ class IgnisErrorMitigation:
         self.shots = shots
         self.meas_fitter = None
 
-    def get_meas_fitter(self, backend: IBMQBackend):
+    def get_meas_fitter(self, backend: IBMBackend):
         q_bits = list(range(self.n_qubits))
         cal_circuits, state_labels = complete_meas_cal(qubit_list=q_bits, circlabel='mitigationError')
 
-        cal_job = execute(cal_circuits,
-                          backend=backend,
-                          shots=self.shots,
-                          optimization_level=0)
+        # cal_job = execute(cal_circuits,
+        #                   backend=backend,
+        #                   shots=self.shots,
+        #                   optimization_level=0)
+        service = QiskitRuntimeService()
+
+        # Submit the job using the "sampler" program
+        
+        cal_job = service._run(
+            program_id="sampler",  # Use "estimator" if needed
+            options={"backend": backend.name},
+            inputs={"circuits": cal_circuits, "shots": self.shots , "optimization_level":0}
+        )
 
         cal_results = cal_job.result()
         meas_fitter = CompleteMeasFitter(cal_results, state_labels)
