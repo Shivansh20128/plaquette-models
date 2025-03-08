@@ -2,9 +2,10 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 import uuid
 from qiskit import transpile, QuantumCircuit
+from qiskit.providers.backend import Backend
 # from qiskit.providers.ibmq import IBMQJobManager, IBMQBackend
 from qiskit_ibm_runtime import QiskitRuntimeService, RuntimeJob
-from qiskit_ibm_runtime.ibm_backend import IBMBackend
+# from qiskit_ibm_runtime.ibm_backend import IBMBackend
 
 from qiskit.result import Result
 
@@ -37,7 +38,7 @@ class ExperimentConfiguration:
 @dataclass
 class RunConfiguration:
     time_vector: List[float]
-    backend: IBMBackend
+    backend: Backend
     shots: int = 1000
 
 
@@ -138,17 +139,16 @@ def run_circuits(physical_model: PhysicalModel, experiment_config: ExperimentCon
     # return job_manager, job_set_id, circuits
 
 
-def get_circuits_by_time_step(circuit: QuantumCircuit, zne: bool, scale_factors: list, backend: IBMBackend,
+def get_circuits_by_time_step(circuit: QuantumCircuit, zne: bool, scale_factors: list, backend: Backend,
                               optimization_level: Optional[int]) -> List[QuantumCircuit]:
     circuits_in_time_step = list()
     if not zne:
         if optimization_level is not None:
-            circuit = transpile(circuit, backend, basis_gates=['id', 'u1', 'u2', 'u3', 'cx'], optimization_level=2)
+            circuit = transpile(circuit, backend, optimization_level=2)
         return [circuit]
 
     for scale in scale_factors:
-        circuit = transpile(circuit, backend, basis_gates=['id', 'u1', 'u2', 'u3', 'cx'],
-                            optimization_level=2)
+        circuit = transpile(circuit, backend,optimization_level=2)
 
         folded_circuit = custom_folding(circuit, scale, seed=150)
         circuits_in_time_step.append(folded_circuit)

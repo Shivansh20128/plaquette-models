@@ -8,7 +8,8 @@ from qiskit_ibm_runtime import QiskitRuntimeService
 # from qiskit.ignis.mitigation import complete_meas_cal, CompleteMeasFitter
 from typing import List, Tuple, Union
 from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit, QiskitError
-from qiskit_ibm_runtime.ibm_backend import IBMBackend
+# from qiskit_ibm_runtime.ibm_backend import IBMBackend
+from qiskit.providers.backend import Backend
 
 from src.analysis.constants import MATRIX, STATES
 from src.observables.gauss import gauss_law, sector_2, gauss_law_squared
@@ -1845,7 +1846,7 @@ class CustomErrorMitigation:
 
         return qc
 
-    def build_probability_matrix(self, backend: IBMBackend):
+    def build_probability_matrix(self, backend: Backend):
         possible_states = self._build_set_of_states()
         probability_matrix = list()
         circuits = list()
@@ -1888,7 +1889,7 @@ class IgnisErrorMitigation:
         self.shots = shots
         self.meas_fitter = None
 
-    def get_meas_fitter(self, backend: IBMBackend):
+    def get_meas_fitter(self, backend: Backend):
         q_bits = list(range(self.n_qubits))
         cal_circuits, state_labels = complete_meas_cal(qubit_list=q_bits, circlabel='mitigationError')
 
