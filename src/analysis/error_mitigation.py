@@ -4,7 +4,7 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 from qiskit import QuantumRegister, QuantumCircuit, ClassicalRegister
-from qiskit_ibm_runtime import QiskitRuntimeService
+from qiskit_ibm_runtime import QiskitRuntimeService, SamplerV2
 # from qiskit.ignis.mitigation import complete_meas_cal, CompleteMeasFitter
 from typing import List, Tuple, Union
 from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit, QiskitError
@@ -1642,8 +1642,10 @@ class TensoredMeasFitter():
 
         # go through for each calibration experiment
         for result in self._result_list:
-            for experiment in result.results:
-                circ_name = experiment.header.name
+            for i, experiment in enumerate(result):
+                circ_name = result.metadata.get("header", {}).get("name", f"Circuit {i}")
+            # for experiment in result:
+            #     circ_name = experiment.header.name
                 # extract the state from the circuit name
                 # this was the prepared state
                 circ_search = re.search('(?<=' + self._circlabel + 'cal_)\\w+',
@@ -1733,9 +1735,15 @@ def get_counts_result(output_correction, result_hpc, result_key: str, gauss_key:
     experiments_params = get_exp_params(time_vector, zne_extrapolation, scale_factors, num_replicas)
     time_steps = len(time_vector)
     num_scales = len(scale_factors) if zne_extrapolation else 1
+    print(result_hpc[0].get_counts(0))
+    print(result_hpc[1].get_counts(0))
+    print(time_steps * num_scales * num_replicas)
 
-    for exp_ind in range(time_steps * num_scales * num_replicas):
-        non_corrected_counts = result_hpc.get_counts(exp_ind)
+    # print(result_hpc[0])
+    for exp_ind in range(20):
+        non_corrected_counts = result_hpc[exp_ind].get_counts()
+        print(type(non_corrected_counts))
+        print(non_corrected_counts)
         one_count = non_corrected_counts.get(result_key, 0) / shots
         experiment_result = dict()
         replica_ind = experiments_params[exp_ind][-1]
@@ -1842,7 +1850,7 @@ class CustomErrorMitigation:
         c = ClassicalRegister(self.n_qubits, 'c')
         meas = QuantumCircuit(q, c)
         meas.measure(q, c)
-        qc = circ + meas
+        qc = circ.compose(meas)
 
         return qc
 
@@ -1858,11 +1866,20 @@ class CustomErrorMitigation:
         service = QiskitRuntimeService()
 
         # Submit the job using the "sampler" program
-        job_hpc = service._run(
-            program_id="sampler",  # Use "estimator" if needed
-            options={"backend": backend.name},
-            inputs={"circuits": circuits, "shots": self.shots}
+        # sampler = SamplerV2(backend=backend)
+
+        # Run the job
+        job_hpc = backend.run(
+            circuits,
+            shots=self.shots
         )
+
+    
+        # job_hpc = service.run(
+        #     program_id="sampler",  # Use "estimator" if needed
+        #     options={"backend": backend.name},
+        #     inputs={"circuits": circuits, "shots": self.shots}
+        # )
 
         result_hpc = job_hpc.result()
 
@@ -1900,11 +1917,13 @@ class IgnisErrorMitigation:
         service = QiskitRuntimeService()
 
         # Submit the job using the "sampler" program
-        
-        cal_job = service._run(
-            program_id="sampler",  # Use "estimator" if needed
-            options={"backend": backend.name},
-            inputs={"circuits": cal_circuits, "shots": self.shots , "optimization_level":0}
+
+        sampler = SamplerV2(backend=backend)
+
+        # Run the job
+        cal_job = sampler.run(
+            cal_circuits,
+            shots=self.shots
         )
 
         cal_results = cal_job.result()

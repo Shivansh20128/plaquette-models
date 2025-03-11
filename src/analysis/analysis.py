@@ -4,7 +4,7 @@ import uuid
 from qiskit import transpile, QuantumCircuit
 from qiskit.providers.backend import Backend
 # from qiskit.providers.ibmq import IBMQJobManager, IBMQBackend
-from qiskit_ibm_runtime import QiskitRuntimeService, RuntimeJob
+from qiskit_ibm_runtime import QiskitRuntimeService, RuntimeJob, SamplerV2
 # from qiskit_ibm_runtime.ibm_backend import IBMBackend
 
 from qiskit.result import Result
@@ -44,7 +44,7 @@ class RunConfiguration:
 
 def analyze_results(physical_model: PhysicalModel, experiment_configuration: ExperimentConfiguration,
                     run_configuration: RunConfiguration,
-                    result_hpc: Result, result_key: Optional[str] = None, gauss_key: Optional[str] = None,
+                    result_hpc, result_key: Optional[str] = None, gauss_key: Optional[str] = None,
                     mitigated_counts: dict = None, ignis: bool = True, meas_filter=None):
     """
     Returns an array with normalized counts for spin up states in the plaquette
@@ -68,7 +68,8 @@ def analyze_results(physical_model: PhysicalModel, experiment_configuration: Exp
     if ignis:
         pass
         # mitigated_counts = meas_filter.apply(result_hpc) if meas_filter else result_hpc
-
+    print("shivansh2")
+    print((result_hpc))
     results_df = get_counts_result(mitigated_counts, result_hpc, result_key, gauss_key, time_vector,
                                    zne_extrapolation, scale_factors, num_replicas, ignis=ignis, shots=shots,
                                    meas_filter=meas_filter)
@@ -105,6 +106,7 @@ def run_circuits(physical_model: PhysicalModel, experiment_config: ExperimentCon
     for time_step in time_vector:
         plaquette_obj = model(number_links + 1, time_step, g, gauge_group=group)
         base_circuit = plaquette_obj.generate_circuit(control_qubit)  # For Valencia, qubit 1 is the control qubit
+        # print("pehle yaha hona chaiye")
         circuits_in_step = get_circuits_by_time_step(base_circuit, zne_extrapolation, scale_factors, backend,
                                                      optimization_level)
 
@@ -117,15 +119,22 @@ def run_circuits(physical_model: PhysicalModel, experiment_config: ExperimentCon
 
     # Generate a unique "job set ID" manually
     job_set_id = str(uuid.uuid4())  
+    # sampler = SamplerV2(backend)
+    
 
     # Submit jobs for each circuit
     for circuit in circuits:
-        job = service.run(
-            program_id="sampler",
-            options={"backend": backend.name},
-            inputs={"circuits": [circuit], "shots": shots}
-        )
+        job = backend.run([circuit], shots=shots)  # Correct method
+        print(f"job type: {type(job)}")
         jobs.append(job)
+
+    # for circuit in circuits:
+    #     job = service.run(
+    #         program_id="samplerV2",
+    #         options={"backend": backend.name},
+    #         inputs={"circuits": [circuit], "shots": shots}
+    #     )
+    #     jobs.append(job)
 
     return jobs, job_set_id, circuits
     # job_manager = IBMQJobManager()
@@ -141,9 +150,13 @@ def run_circuits(physical_model: PhysicalModel, experiment_config: ExperimentCon
 
 def get_circuits_by_time_step(circuit: QuantumCircuit, zne: bool, scale_factors: list, backend: Backend,
                               optimization_level: Optional[int]) -> List[QuantumCircuit]:
+    # print("hello yaha pe aaya?")
     circuits_in_time_step = list()
-    if not zne:
+    if (not zne) or zne:  ## adding (or zne) here for now
+        # print("fir yaha?")
         if optimization_level is not None:
+            # print("uske baad yaha?")
+            print(backend.configuration().basis_gates)
             circuit = transpile(circuit, backend, optimization_level=2)
         return [circuit]
 
